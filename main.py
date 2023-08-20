@@ -1,9 +1,4 @@
 import os
-import sys
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-site_packages_dir = os.path.join(current_dir, 'site-packages')
-sys.path.append(site_packages_dir)
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,14 +8,31 @@ from linebot.v3.messaging.models.push_message_request import PushMessageRequest
 from linebot.v3.messaging.rest import ApiException
 from linebot.v3.messaging import TextMessage
 from dotenv import load_dotenv
+import logging
+from datetime import datetime
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+fl_handler = logging.FileHandler(filename=f"{current_dir}/logs/{datetime.now().strftime('%Y-%m-%d')}.log", encoding="utf-8")
+fl_handler.setFormatter(logging.Formatter("%(levelname)-9s  %(asctime)s [%(filename)s:%(lineno)d] %(message)s"))
+
+logger = logging.getLogger("regasu")
+logger.addHandler(fl_handler)
+logger.setLevel(logging.DEBUG)
+
+logger.info('start')
 
 load_dotenv()
+LINE_USER_ID = os.environ['LINE_USER_ID']
 CHANNEL_ACCESS_TOKEN = os.environ['CHANNEL_ACCESS_TOKEN']
 USER_ID = os.environ['USER_ID']
 PASSWORD = os.environ['PASSWORD']
 
-def lambda_handler(event, context):
-    driver = webdriver.Chrome()
+def execute():
+    chrome_options = webdriver.ChromeOptions()
+    # chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+
+    driver = webdriver.Chrome(options=chrome_options)
     driver.get('https://user.shinjuku-shisetsu-yoyaku.jp')
     driver.get('https://user.shinjuku-shisetsu-yoyaku.jp/regasu/reserve/gin_menu')
 
@@ -51,7 +63,7 @@ def lambda_handler(event, context):
             for tbody in tbodies:
                 date = tbody.find_element(By.TAG_NAME, "th").text
                 tds = tbody.find_elements(By.TAG_NAME, "td")
-                print(tds[3].text)
+                print(f"{date}: {tds[3].text}")
                 try:
                     elem = tds[3].find_element(By.TAG_NAME, "input")
                 except NoSuchElementException as e:
@@ -65,22 +77,21 @@ def lambda_handler(event, context):
         except Exception as e:
             print(e)
             break
+    
+    if not available_dates:
+        return
 
     configuration = linebot.v3.messaging.Configuration(access_token = CHANNEL_ACCESS_TOKEN)
-    user_id = 'U02e32863905dff2c6c9403207a0bc0fd'
     message = f'利用可能な日時: {",".join(available_dates)}'
     with linebot.v3.messaging.ApiClient(configuration) as api_client:
         api_instance = linebot.v3.messaging.MessagingApi(api_client)
-        push_message_request = linebot.v3.messaging.PushMessageRequest(to=user_id, messages=[TextMessage(text=message)])
+        push_message_request = linebot.v3.messaging.PushMessageRequest(to=LINE_USER_ID, messages=[TextMessage(text=message)])
 
         try:
             api_instance.push_message(push_message_request)
         except Exception as e:
-            print("Exception when calling MessagingApi->push_message: %s\n" % e)
+            logger.error("Exception when calling MessagingApi->push_message: %s\n" % e)
 
-    print('end')
+execute()
 
-    return {
-        'statusCode': 200,
-        'body': 'done!'
-    }
+logger.info('end')

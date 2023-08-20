@@ -1,22 +1,24 @@
-# ベースイメージとしてPython 3.9とGoogle Chromeを含むDebian Busterイメージを使用
-FROM python:3.9-slim-buster
+FROM --platform=linux/amd64 python:3.9-buster
 
-# 必要なパッケージをインストール
-RUN apt-get update && apt-get install -y wget unzip
+# 必要なツールのインストール
+RUN apt-get update && apt-get install -y \
+  wget \
+  unzip \
+  gnupg \
+  curl \
+  libgconf-2-4 \
+  libnss3 \
+  libxi6 \
+  libgdk-pixbuf2.0-0 \
+  libasound2 
 
-# Chromeの依存ライブラリをインストール
-RUN apt-get install -y libglib2.0-0 libnss3 libgconf-2-4 libfontconfig1
-
-# Chromeをダウンロードしてインストール
-RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    dpkg -i /tmp/google-chrome.deb || apt-get -fy install && \
-    rm -f /tmp/google-chrome.deb
-
-# ChromeDriverをダウンロードしてインストール
-RUN wget -q -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/101.0.4951.41/chromedriver_linux64.zip && \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
-    rm /tmp/chromedriver.zip && \
-    chmod +x /usr/local/bin/chromedriver
+# Google ChromeとChromeDriverのインストール
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    wget https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/115.0.5790.170/linux64/chromedriver-linux64.zip && \
+    unzip chromedriver-linux64.zip -d /usr/bin && \
+    rm chromedriver-linux64.zip
 
 # ソースコードをコンテナにコピー
 COPY . /app
@@ -24,7 +26,8 @@ COPY . /app
 # 作業ディレクトリを設定
 WORKDIR /app
 
-# RUN pip install --no-cache-dir -r  requirements.txt
-RUN pip install -r ./requirements.txt
+# 必要なPythonパッケージをインストール
+RUN pip install --no-cache-dir -r ./requirements.txt
 
+# 実行時のデフォルトコマンドを指定
 CMD ["/bin/bash"]
